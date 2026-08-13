@@ -1,7 +1,8 @@
-name: NSE Scanner
+name: NSE Stock Scanner
 
 on:
   schedule:
+    - cron: '30 16 * * *'
     - cron: '30 0 * * *'
     - cron: '35 0 * * *'
     - cron: '55 3 * * 1-5'
@@ -16,7 +17,7 @@ on:
   workflow_dispatch:
     inputs:
       scan_type:
-        description: 'Scan type'
+        description: 'Scan type to run'
         required: true
         default: 'all'
         type: choice
@@ -29,26 +30,36 @@ on:
 jobs:
   scan:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write  # ← YEH LINE ADD KARO (IMPORTANT)
+      
     steps:
       - uses: actions/checkout@v3
+      
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.10'
-      - name: Install
-        run: pip install -r requirements.txt
-      - name: Run
+      
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+      
+      - name: Run Scanner
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           EMAIL_TO: ${{ secrets.EMAIL_TO }}
           EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
           EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
-        run: python main.py --scan ${{ github.event.inputs.scan_type || 'scheduled' }}
-      - name: Commit
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python scanner/main.py --scan ${{ github.event.inputs.scan_type || 'scheduled' }}
+      
+      - name: Commit Alert History
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
-          git add data/
-          git commit -m "Update" || echo "No changes"
+          git add data/alerts_history/
+          git commit -m "Update alert history [skip ci]" || echo "No changes to commit"
           git push
